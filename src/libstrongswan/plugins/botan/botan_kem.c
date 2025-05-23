@@ -76,11 +76,15 @@ struct private_key_exchange_t {
 	 */
 	chunk_t shared_secret;
 
+#ifdef TESTABLE_KE
 	/**
 	 * DRBG for testing.
 	 */
 	drbg_t *drbg;
+#endif
 };
+
+#ifdef TESTABLE_KE
 
 CALLBACK(get_random, int,
 	drbg_t *drbg, uint8_t *out, size_t out_len)
@@ -92,17 +96,21 @@ CALLBACK(get_random, int,
 	return 0;
 }
 
+#endif /* TESTABLE_KE */
+
 /**
  * Initializes the given RNG, either based on a DRBG during testing or using
  * the plugin's configured RNG.
  */
 static bool get_rng(private_key_exchange_t *this, botan_rng_t *rng)
 {
+#ifdef TESTABLE_KE
 	if (this->drbg)
 	{
 		return !botan_rng_init_custom(rng, "kem-drbg", this->drbg,
 									  get_random, NULL, NULL);
 	}
+#endif
 	return botan_get_rng(rng, RNG_STRONG);
 }
 
@@ -111,6 +119,7 @@ static bool get_rng(private_key_exchange_t *this, botan_rng_t *rng)
  */
 static bool generate_keypair(private_key_exchange_t *this)
 {
+#ifdef TESTABLE_KE
 	if (this->drbg)
 	{
 		uint8_t random[ML_KEM_SEED_LEN];
@@ -125,6 +134,7 @@ static bool generate_keypair(private_key_exchange_t *this)
 		}
 	}
 	else
+#endif /* TESTABLE_KE */
 	{
 		botan_rng_t rng = NULL;
 
@@ -303,7 +313,9 @@ METHOD(key_exchange_t, destroy, void,
 	chunk_clear(&this->shared_secret);
 	chunk_free(&this->ciphertext);
 	botan_privkey_destroy(this->kem);
+#ifdef TESTABLE_KE
 	DESTROY_IF(this->drbg);
+#endif
 	free(this->name);
 	free(this);
 }
